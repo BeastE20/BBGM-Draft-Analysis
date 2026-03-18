@@ -1,0 +1,1339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BBGM Scout — Draft Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,300;1,8..60,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ── Reset & Variables ─────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:          #0e0f0d;
+  --bg-card:     #161714;
+  --bg-card2:    #1c1d1a;
+  --bg-input:    #1a1b18;
+  --rule:        #2a2b28;
+  --rule-light:  #333430;
+  --text:        #eae6db;
+  --text-dim:    #a8a49a;
+  --text-muted:  #5a5955;
+  --accent:      #e8c84a;
+  --accent-dim:  #a08828;
+  --accent-bg:   #1c1a0e;
+  --green:       #6ab87a;
+  --red:         #c85a4a;
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-body:    'Source Serif 4', Georgia, serif;
+  --font-mono:    'JetBrains Mono', monospace;
+  --max-w: 1080px;
+}
+
+html { background: var(--bg); color: var(--text); font-size: 16px; }
+body { font-family: var(--font-body); font-weight: 300; line-height: 1.65; min-height: 100vh; }
+
+/* ── Scrollbar ─────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--rule-light); border-radius: 3px; }
+
+/* ── Header ────────────────────────────────────────────────────────────────── */
+.site-header {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 52px 32px 0;
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.28em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+
+.site-title {
+  font-family: var(--font-display);
+  font-size: clamp(52px, 8vw, 96px);
+  font-weight: 900;
+  line-height: 0.92;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+
+.site-title em {
+  font-style: italic;
+  color: var(--accent);
+}
+
+.header-rule {
+  height: 1px;
+  background: linear-gradient(90deg, var(--accent-dim) 0%, var(--rule) 40%, transparent 100%);
+  margin-top: 36px;
+}
+
+/* ── Setup Panel ───────────────────────────────────────────────────────────── */
+.setup-panel {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 28px 32px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.setup-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 700px) {
+  .setup-grid { grid-template-columns: 1fr; }
+}
+
+.setup-slot {
+  background: var(--bg-card);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 14px 16px;
+  position: relative;
+  transition: border-color 0.2s;
+}
+
+.setup-slot.loaded { border-color: var(--accent-dim); }
+.setup-slot.loaded .slot-icon { color: var(--accent); }
+
+.slot-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.slot-icon {
+  font-size: 20px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.slot-name {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.slot-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--accent);
+  margin-top: 3px;
+}
+
+.file-input-wrap {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+}
+
+.file-input-wrap input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+}
+
+/* API key slot */
+.api-slot {
+  background: var(--bg-card);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 14px 16px;
+}
+
+.api-slot.keyed { border-color: var(--accent-dim); }
+
+.api-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.api-input {
+  flex: 1;
+  background: var(--bg-input);
+  border: 1px solid var(--rule);
+  color: var(--text);
+  padding: 7px 10px;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  outline: none;
+}
+.api-input:focus { border-color: var(--accent-dim); }
+
+/* Buttons */
+.btn {
+  font-family: var(--font-body);
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s;
+  border-radius: 3px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+}
+
+.btn-gold {
+  background: var(--accent);
+  color: #111;
+  font-size: 11px;
+  text-transform: uppercase;
+  padding: 7px 14px;
+  font-weight: 600;
+}
+.btn-gold:hover { background: #f0d460; }
+.btn-gold:disabled { background: var(--text-muted); color: var(--bg); cursor: not-allowed; }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  padding: 7px 14px;
+  border: 1px solid var(--rule);
+}
+.btn-ghost:hover { border-color: var(--text-muted); color: var(--text-dim); }
+
+/* Action bar */
+.action-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.action-status {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+  flex: 1;
+}
+
+/* ── Progress ──────────────────────────────────────────────────────────────── */
+.progress-wrap {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 10px 32px;
+  display: none;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 1px solid var(--rule);
+}
+.progress-wrap.visible { display: flex; }
+
+.progress-track {
+  flex: 1;
+  height: 2px;
+  background: var(--rule);
+  border-radius: 1px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 1px;
+  width: 0%;
+  transition: width 0.5s ease;
+}
+
+.progress-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+
+/* ── Empty State ───────────────────────────────────────────────────────────── */
+.empty-state {
+  max-width: 500px;
+  margin: 80px auto;
+  text-align: center;
+  padding: 0 32px;
+}
+
+.empty-glyph {
+  font-family: var(--font-display);
+  font-size: 64px;
+  color: var(--text-muted);
+  opacity: 0.15;
+  line-height: 1;
+  margin-bottom: 24px;
+}
+
+.empty-title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+}
+
+.empty-body {
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.7;
+}
+
+.empty-body strong { color: var(--accent); font-weight: 400; }
+
+/* ── Draft Board ───────────────────────────────────────────────────────────── */
+.draft-board {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 0 32px 100px;
+}
+
+/* ── Prospect Card ─────────────────────────────────────────────────────────── */
+.prospect-card {
+  border-top: 1px solid var(--rule);
+  padding: 44px 0;
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  column-gap: 28px;
+  animation: fadeUp 0.35s ease both;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.card-rank {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  padding-top: 5px;
+  text-align: right;
+}
+
+.card-body { min-width: 0; }
+
+.card-header {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.card-name {
+  font-family: var(--font-display);
+  font-size: clamp(24px, 3.5vw, 36px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--text);
+}
+
+.card-pos {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--bg);
+  background: var(--text-muted);
+  padding: 3px 8px;
+  border-radius: 2px;
+  text-transform: uppercase;
+}
+
+.card-vitals {
+  display: flex;
+  gap: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.vital { display: flex; align-items: center; }
+.vital + .vital::before {
+  content: '·';
+  margin: 0 10px;
+  color: var(--rule-light);
+}
+
+/* Comps */
+.card-comps {
+  display: flex;
+  gap: 7px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.comp-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px 5px 8px;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--rule-light);
+  border-radius: 0 3px 3px 0;
+  background: var(--bg-card);
+  font-size: 11px;
+}
+
+.comp-chip.is-ceiling {
+  border-left-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.comp-type {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  min-width: 44px;
+}
+
+.comp-chip.is-ceiling .comp-type { color: var(--accent); }
+
+.comp-name { color: var(--text-dim); }
+
+.comp-score {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* Report */
+.card-blurb-short {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 18px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  border-left: 2px solid var(--accent);
+  padding-left: 16px;
+  margin-bottom: 16px;
+  max-width: 700px;
+}
+
+.card-blurb-long {
+  font-size: 14px;
+  line-height: 1.85;
+  color: #aea9a0;
+  max-width: 680px;
+}
+
+.card-blurb-long p { margin-bottom: 12px; }
+.card-blurb-long p:last-child { margin-bottom: 0; }
+
+.card-pending {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-style: italic;
+  padding: 12px 0;
+}
+
+.spinner {
+  width: 15px; height: 15px;
+  border: 2px solid var(--rule);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.btn-regen {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 16px;
+  background: transparent;
+  border: 1px solid var(--rule);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 5px 12px;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-regen:hover { border-color: var(--text-muted); color: var(--text-dim); }
+
+/* ── Footer ────────────────────────────────────────────────────────────────── */
+.site-footer {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 20px 32px;
+  border-top: 1px solid var(--rule);
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.footer-clear {
+  background: none;
+  border: 1px solid var(--rule);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.footer-clear:hover { border-color: var(--red); color: var(--red); }
+
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="site-header">
+  <div class="eyebrow">BBGM Scout · Draft Analysis</div>
+  <h1 class="site-title">Draft <em>Guide</em></h1>
+  <div class="header-rule"></div>
+</header>
+
+<!-- SETUP -->
+<div class="setup-panel">
+  <div class="setup-grid">
+
+    <!-- Comps DB -->
+    <div class="setup-slot" id="slot-comps">
+      <div class="slot-label">Comps Database</div>
+      <div class="slot-icon">◈</div>
+      <div class="slot-name" id="comps-name">Upload player CSV</div>
+      <div class="slot-count" id="comps-count"></div>
+      <div class="file-input-wrap">
+        <input type="file" accept=".csv,.xlsx,.xls" id="input-comps">
+      </div>
+    </div>
+
+    <!-- Draft Class -->
+    <div class="setup-slot" id="slot-draft">
+      <div class="slot-label">Draft Class</div>
+      <div class="slot-icon">◉</div>
+      <div class="slot-name" id="draft-name">Upload prospect CSV</div>
+      <div class="slot-count" id="draft-count"></div>
+      <div class="file-input-wrap">
+        <input type="file" accept=".csv" id="input-draft">
+      </div>
+    </div>
+
+    <!-- API Key -->
+    <div class="setup-slot api-slot" id="slot-api">
+      <div class="slot-label">Anthropic API Key</div>
+      <div class="slot-icon">⌗</div>
+      <div class="api-row">
+        <input type="password" class="api-input" id="api-key" placeholder="sk-ant-…">
+        <button class="btn btn-gold" id="btn-save-key">Save</button>
+      </div>
+      <div class="slot-count" id="api-status"></div>
+    </div>
+
+  </div>
+
+  <!-- Action bar -->
+  <div class="action-bar">
+    <button class="btn btn-gold" id="btn-scout" disabled>Scout the Draft</button>
+    <button class="btn btn-ghost hidden" id="btn-regen-all">↺ Regenerate All</button>
+    <div class="action-status" id="action-status">Load a comps database and draft class to begin.</div>
+  </div>
+</div>
+
+<!-- PROGRESS -->
+<div class="progress-wrap" id="progress-wrap">
+  <div class="progress-track">
+    <div class="progress-fill" id="progress-fill"></div>
+  </div>
+  <div class="progress-label" id="progress-label">Generating…</div>
+</div>
+
+<!-- EMPTY STATE -->
+<div class="empty-state" id="empty-state">
+  <div class="empty-glyph">◎</div>
+  <p class="empty-title">No draft class loaded</p>
+  <p class="empty-body">Upload your <strong>comps database</strong> and a <strong>draft class CSV</strong> above, then click <strong>Scout the Draft</strong>.</p>
+</div>
+
+<!-- BOARD -->
+<main class="draft-board" id="draft-board"></main>
+
+<!-- FOOTER -->
+<footer class="site-footer">
+  <span>BBGM Scout · Reports include scouting noise to simulate real-world evaluation uncertainty.</span>
+  <button class="footer-clear" id="btn-clear-all">Clear All Data</button>
+</footer>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════════
+// BBGM SCOUT — Single-file web app
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── Storage keys ───────────────────────────────────────────────────────────────
+const LS = {
+  COMPS:    "bbgmScout_comps",
+  COMPS_META: "bbgmScout_compsMeta",
+  PROSPECTS: "bbgmScout_prospects",
+  DRAFT_META: "bbgmScout_draftMeta",
+  REPORTS:  "bbgmScout_reports",
+  API_KEY:  "bbgmScout_apiKey",
+};
+
+// ── Stat column mapping ─────────────────────────────────────────────────────────
+// Maps CSV headers → internal keys
+const COL_MAP = {
+  "Hgt": "hgt", "Str": "stre", "Spd": "spd", "Jmp": "jmp", "End": "endu",
+  "Ins": "ins", "Dnk": "dnk", "Ft": "ft",  "2pt": "fg",  "3pt": "tp",
+  "oIq": "iq",  "oIQ": "iq",  "dIQ": "diq", "dIq": "diq",
+  "Drb": "drb", "Pss": "pss", "Reb": "reb", "Ovr": "ovr",
+};
+
+const STAT_KEYS = ["hgt","stre","spd","jmp","endu","ins","dnk","ft","fg","tp","iq","diq","drb","pss","reb"];
+
+const STAT_LABELS = {
+  hgt:"Height", stre:"Strength", spd:"Speed", jmp:"Athleticism",
+  endu:"Endurance", ins:"Inside Scoring", dnk:"Finishing/Dunking",
+  ft:"Free Throw", fg:"Two-Point Shooting", tp:"Three-Point Shooting",
+  iq:"Offensive IQ", diq:"Defensive IQ", drb:"Ball Handling",
+  pss:"Passing", reb:"Rebounding",
+};
+
+// ── State ───────────────────────────────────────────────────────────────────────
+let compsDB   = [];   // normalized player rows (z-scored against popStats)
+let popStats  = {};   // mean + std per attribute, derived from comps DB raw values
+let prospects = [];   // processed prospect objects (with noisyStats + comps)
+let reports   = {};   // { [name]: { short, long } }
+let generating = false;
+
+// ── DOM ─────────────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+
+const els = {
+  slotComps:     $("slot-comps"),
+  slotDraft:     $("slot-draft"),
+  slotApi:       $("slot-api"),
+  compsName:     $("comps-name"),
+  compsCount:    $("comps-count"),
+  draftName:     $("draft-name"),
+  draftCount:    $("draft-count"),
+  apiKey:        $("api-key"),
+  apiStatus:     $("api-status"),
+  btnSaveKey:    $("btn-save-key"),
+  btnScout:      $("btn-scout"),
+  btnRegenAll:   $("btn-regen-all"),
+  actionStatus:  $("action-status"),
+  progressWrap:  $("progress-wrap"),
+  progressFill:  $("progress-fill"),
+  progressLabel: $("progress-label"),
+  emptyState:    $("empty-state"),
+  board:         $("draft-board"),
+  btnClearAll:   $("btn-clear-all"),
+};
+
+// ── CSV Parser ──────────────────────────────────────────────────────────────────
+function parseCSV(text) {
+  const lines = text.trim().split(/\r?\n/);
+  if (lines.length < 2) return [];
+  // Handle both tab and comma separated
+  const sep = lines[0].includes("\t") ? "\t" : ",";
+  const headers = lines[0].split(sep).map(h => h.trim());
+  return lines.slice(1).map(line => {
+    const vals = line.split(sep);
+    const row = {};
+    headers.forEach((h, i) => row[h] = (vals[i] || "").trim());
+    return row;
+  }).filter(r => Object.values(r).some(v => v !== ""));
+}
+
+function safeFloat(v) {
+  const n = parseFloat(v);
+  return isNaN(n) ? 0 : n;
+}
+
+// ── Normalization ───────────────────────────────────────────────────────────────
+// Converts raw 0-100 BBGM attributes to z-scores using the comps DB as reference
+// population (mean and std computed from comps for each stat)
+
+function computePopStats(rows) {
+  const stats = {};
+  for (const key of [...STAT_KEYS, "ovr"]) {
+    const vals = rows.map(r => r[key]).filter(v => v != null && !isNaN(v));
+    if (!vals.length) { stats[key] = { mean: 50, std: 10 }; continue; }
+    const mean = vals.reduce((a,b) => a+b, 0) / vals.length;
+    const std = Math.sqrt(vals.reduce((a,b) => a + (b-mean)**2, 0) / vals.length) || 10;
+    stats[key] = { mean, std };
+  }
+  return stats;
+}
+
+function normalizeRow(rawRow, popStats) {
+  const out = {};
+  for (const key of STAT_KEYS) {
+    const raw = safeFloat(rawRow[key] ?? rawRow[Object.keys(COL_MAP).find(k => COL_MAP[k] === key)] ?? 50);
+    const { mean, std } = popStats[key];
+    out[key] = (raw - mean) / std;
+  }
+  return out;
+}
+
+// ── Comps DB loader ─────────────────────────────────────────────────────────────
+// Comps CSV is raw 0-100 values. We compute population stats from it, then
+// z-score both the comps and any draft class against those same stats.
+// Returns { players: [...], popStats: {...} }
+
+function loadCompsFromRows(rows) {
+  // First pass: read raw values
+  const rawPlayers = rows.map(row => {
+    const player = { name: row["Name"] || "Unknown", pos: row["Pos"] || "F", team: row["Team"] || "0" };
+    for (const [csvCol, key] of Object.entries(COL_MAP)) {
+      if (row[csvCol] != null && row[csvCol] !== "") player[key] = safeFloat(row[csvCol]);
+    }
+    for (const key of STAT_KEYS) if (player[key] == null) player[key] = 50;
+    return player;
+  });
+
+  // Compute population stats from raw values
+  const ps = computePopStats(rawPlayers);
+
+  // Second pass: normalize each player against population
+  const normalized = rawPlayers.map(p => {
+    const norm = { name: p.name, pos: p.pos, team: p.team };
+    for (const key of STAT_KEYS) {
+      norm[key] = (p[key] - ps[key].mean) / ps[key].std;
+    }
+    // Normalize OVR if present
+    if (p.ovr != null && ps.ovr) {
+      norm.ovr = (p.ovr - ps.ovr.mean) / ps.ovr.std;
+    }
+    return norm;
+  });
+
+  return { players: normalized, popStats: ps };
+}
+
+// ── Draft class loader ──────────────────────────────────────────────────────────
+// Draft CSV has raw 0-100 values — normalize against comps population
+
+function loadDraftFromRows(rows, popStats) {
+  return rows.map((row, i) => {
+    const name = row["Name"] || `Prospect ${i+1}`;
+    const pos  = row["Pos"] || "F";
+    const pot  = (row["Pot"] || "C").trim().toUpperCase();
+
+    // Build raw stat object using COL_MAP
+    const rawStats = {};
+    for (const [csvCol, key] of Object.entries(COL_MAP)) {
+      if (row[csvCol] != null && row[csvCol] !== "") rawStats[key] = safeFloat(row[csvCol]);
+    }
+    for (const key of STAT_KEYS) if (rawStats[key] == null) rawStats[key] = 50;
+
+    // Normalize
+    const normStats = normalizeRow(rawStats, popStats);
+
+    // Normalize OVR if present in draft CSV
+    const rawOvr = row["Ovr"] != null && row["Ovr"] !== "" ? safeFloat(row["Ovr"]) : null;
+    const normOvr = (rawOvr != null && popStats.ovr)
+      ? (rawOvr - popStats.ovr.mean) / popStats.ovr.std
+      : null;
+
+    return {
+      id: `${name}_${i}`,
+      rank: i + 1,
+      name,
+      pos,
+      age: row["Age"] ? parseInt(row["Age"]) : null,
+      pot,
+      rawStats,
+      normStats,
+      normOvr,
+    };
+  });
+}
+
+// ── Noise ───────────────────────────────────────────────────────────────────────
+// Applied to normalized stats. Gaussian std ~0.2 z-score units (small but meaningful).
+// ~8% chance of a significant misread on any given attribute.
+
+function applyNoise(normStats) {
+  const noisy = {};
+  for (const key of STAT_KEYS) {
+    const r1 = Math.random(), r2 = Math.random();
+    const g = Math.sqrt(-2 * Math.log(r1 + 1e-9)) * Math.cos(2 * Math.PI * r2);
+    let noise = g * 0.22;
+    if (Math.random() < 0.08) noise += (Math.random() > 0.5 ? 1 : -1) * (0.5 + Math.random() * 0.4);
+    noisy[key] = normStats[key] + noise;
+  }
+  return noisy;
+}
+
+// ── Comps ───────────────────────────────────────────────────────────────────────
+
+function cosine(a, b) {
+  let dot=0, na=0, nb=0;
+  for (const k of STAT_KEYS) {
+    const av = a[k]??0, bv = b[k]??0;
+    dot += av*bv; na += av*av; nb += bv*bv;
+  }
+  if (!na || !nb) return 0;
+  return ((dot / (Math.sqrt(na) * Math.sqrt(nb))) + 1) * 50;
+}
+
+// OVR z-score estimate: sum of normalized stats (proxy for overall)
+function ovrProxy(normStats) {
+  return STAT_KEYS.reduce((s, k) => s + (normStats[k] ?? 0), 0) / STAT_KEYS.length;
+}
+
+const BROAD_POS = p => {
+  if (["PG","SG","G"].includes(p)) return "guard";
+  if (["SF","PF","F","GF","FC"].includes(p)) return "forward";
+  if (p === "C") return "center";
+  return "any";
+};
+
+// Ceiling gap thresholds by potential grade (mirrors Python script logic)
+const POT_GAP = { A: 1.35, B: 1.25, C: 1.15, D: 1.10, F: 1.00 };
+
+function getComps(noisyStats, prospect) {
+  const bp = BROAD_POS(prospect.pos);
+  const pOvr = prospect.normOvr != null ? prospect.normOvr : ovrProxy(noisyStats);
+  const gap = POT_GAP[prospect.pot] ?? 1.15;
+
+  const sims = compsDB
+    .filter(lp => {
+      const lb = BROAD_POS(lp.pos);
+      return lb === bp || bp === "any" || lb === "any";
+    })
+    .map(lp => ({
+      name: lp.name,
+      sim: cosine(noisyStats, lp),
+      ovr: lp.ovr != null ? lp.ovr : ovrProxy(lp),
+    }));
+
+  const highPool = sims.filter(x => x.ovr >= pOvr + gap);
+  const highComp = highPool.length
+    ? highPool.reduce((a,b) => a.sim > b.sim ? a : b)
+    : null;
+
+  const normals = [...sims]
+    .sort((a,b) => b.sim - a.sim)
+    .filter(x => x.name !== highComp?.name)
+    .slice(0, 2);
+
+  const lbl = s => s >= 90 ? "Strong" : s >= 80 ? "Good" : "Loose";
+
+  return {
+    high: highComp ? { name: highComp.name, sim: highComp.sim.toFixed(1), label: lbl(highComp.sim) } : null,
+    normal: normals.map(c => ({ name: c.name, sim: c.sim.toFixed(1), label: lbl(c.sim) })),
+  };
+}
+
+// ── Rating labels ───────────────────────────────────────────────────────────────
+// Based on z-score ranges (normalized stats)
+function ratingLabel(z) {
+  if (z >= 1.5)  return "elite";
+  if (z >= 0.8)  return "very good";
+  if (z >= 0.2)  return "solid";
+  if (z >= -0.3) return "average";
+  if (z >= -0.9) return "below average";
+  return "poor";
+}
+
+// ── Generate report ─────────────────────────────────────────────────────────────
+
+async function generateReport(prospect, apiKey) {
+  const ns = prospect.noisyStats;
+
+  const physKeys  = ["hgt","stre","spd","jmp","endu"];
+  const offKeys   = ["ins","dnk","ft","fg","tp","iq","drb","pss"];
+  const defKeys   = ["diq","reb"];
+
+  const block = keys => keys.map(k => `  ${STAT_LABELS[k]}: ${ratingLabel(ns[k])}`).join("\n");
+  const statsBlock = `Physical:\n${block(physKeys)}\n\nOffense:\n${block(offKeys)}\n\nDefense / Rebounding:\n${block(defKeys)}`;
+
+  const compLines = [];
+  if (prospect.comps?.high) compLines.push(`Ceiling comp: ${prospect.comps.high.name} (${prospect.comps.high.label} stylistic match)`);
+  (prospect.comps?.normal || []).forEach(c => compLines.push(`Style comp: ${c.name} (${c.label} match)`));
+
+  const examples = `EXAMPLE 1
+SHORT: Shifty dribble-pass-shoot wing who wins with speed and shot-making craft, but brings thin-frame defense and almost no presence on the glass.
+LONG: A light, finesse-oriented guard/forward with real burst, smooth handle, and a confident jumper from both mid-range and three, James Yates plays a skill-first perimeter game built around getting defenders off balance. The combination of below-average strength, rebounding, and defensive awareness makes him more of an offense-leaning prospect, but his touch, pace, and scoring versatility give him a clear role if the decision-making and team defense stabilize.
+
+EXAMPLE 2
+SHORT: Tough, defense-first guard who plays bigger than his size, mixing strength, effort, and sneaky playmaking despite a scoring package that's still stuck in the mud.
+LONG: Raja Driver is a compact, physical guard who leans heavily on strength, endurance, and real defensive instincts to impact games without needing the ball. He competes on every possession, moves well enough laterally, and shows promising connective passing, but the scoring toolbox—from rim pressure to jumper confidence—is undercooked. If the offense ever catches up even a little, the motor-and-defense baseline gives him a clean pathway to usefulness.
+
+EXAMPLE 3
+SHORT: Smooth scoring forward with quiet athletic tools but a refined midrange touch and the kind of soft-skill feel that hints at real growth if the physicality comes later.
+LONG: Wayne Stanton is a finesse-leaning forward who wins not with burst or power but with timing, poise, and a polished scoring touch inside the arc. He processes the game cleanly, knocks down midrange looks, and shows hints of versatile offensive feel, even if the handle, strength, and defensive pop aren't there yet. With an A-grade ceiling and a skill-first foundation, he's the kind of slow-burn prospect who could blossom once his frame fills out and the game slows down even further for him.`;
+
+  // Build age and potential context for the prompt
+  const potContext = {
+    A: "A-grade ceiling — one of the higher-upside prospects in the class. The blurb should carry genuine excitement and project real star potential.",
+    B: "B-grade ceiling — a quality prospect with clear starting upside. Measured optimism, not hype.",
+    C: "C-grade ceiling — a solid role player projection. The blurb should be grounded and realistic about his limitations.",
+    D: "D-grade ceiling — limited upside. The blurb should be honest about what he is, with no manufactured optimism.",
+    F: "F-grade ceiling — a fringe prospect. Write him as someone fighting for a roster spot, not a future contributor.",
+  };
+
+  const ageContext = prospect.age
+    ? prospect.age <= 19
+      ? `Age ${prospect.age} — one of the younger prospects in the class. His youth is a genuine asset; the ceiling language should reflect that there's real developmental room ahead of him.`
+      : prospect.age <= 21
+      ? `Age ${prospect.age} — normal draft age, no special age note needed.`
+      : prospect.age <= 23
+      ? `Age ${prospect.age} — slightly older for a prospect. What you see is closer to what you get; temper any long-term developmental language accordingly.`
+      : `Age ${prospect.age} — old for a prospect. He should be evaluated as a finished product with limited room to grow.`
+    : "";
+
+  const prompt = `You write NBA draft prospect evaluations for The Ringer. Sharp, economical, specific — no filler. Study these examples for tone and format:
+
+${examples}
+
+---
+
+Prospect: ${prospect.name}
+Position: ${prospect.pos}
+${prospect.age ? `Age: ${prospect.age}` : ""}
+Potential Grade: ${prospect.pot}
+
+Scouted attributes (film-based assessment):
+${statsBlock}
+
+Player comps:
+${compLines.length ? compLines.join("\n") : "No strong comps found."}
+
+Potential context (use this to calibrate excitement and outlook tone):
+${potContext[prospect.pot] || potContext["C"]}
+
+${ageContext ? `Age context: ${ageContext}` : ""}
+
+Rules:
+- SHORT: One sentence, 20–40 words. Lead with a noun phrase naming the player type. Capture a core strength AND a real limitation in the same breath. Do NOT open with the player's name.
+- LONG: 1–2 paragraphs, 2–3 sentences each. Open with the player's full name. Present tense. Specific strengths and real concerns relative to their position. Reference comps only if natural. No bullets, no headers, no raw numbers.
+- Let the potential grade and age flavor the tone naturally — don't state the grade directly or say "A-grade prospect". Express it through language: an A prospect gets star-trajectory framing, an F prospect gets honest floor-ceiling realism.
+- Banned phrases: "has potential", "will need to work on", "upside", "intangibles", "in time", "down the road", "could develop".
+
+Format EXACTLY like this with no other text:
+SHORT: [one sentence]
+LONG: [paragraphs]`;
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true",
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 800,
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+
+  const text = data.content?.[0]?.text || "";
+  const shortM = text.match(/SHORT:\s*(.+?)(?=\nLONG:|$)/s);
+  const longM  = text.match(/LONG:\s*([\s\S]+)/);
+  return {
+    short: shortM?.[1]?.trim() || text.split("\n")[0],
+    long:  longM?.[1]?.trim()  || text,
+  };
+}
+
+// ── Render ──────────────────────────────────────────────────────────────────────
+
+function esc(s) {
+  return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+function fmtParas(text) {
+  return text.split(/\n\n+/).map(p => `<p>${esc(p.trim())}</p>`).join("");
+}
+
+function renderComps(comps) {
+  if (!comps) return "";
+  const chips = [];
+  if (comps.high) chips.push(`
+    <div class="comp-chip is-ceiling">
+      <span class="comp-type">Ceiling</span>
+      <span class="comp-name">${esc(comps.high.name)}</span>
+      <span class="comp-score">${comps.high.sim} · ${comps.high.label}</span>
+    </div>`);
+  (comps.normal||[]).forEach(c => chips.push(`
+    <div class="comp-chip">
+      <span class="comp-type">Comp</span>
+      <span class="comp-name">${esc(c.name)}</span>
+      <span class="comp-score">${c.sim} · ${c.label}</span>
+    </div>`));
+  return chips.length ? `<div class="card-comps">${chips.join("")}</div>` : "";
+}
+
+function renderCard(prospect, idx) {
+  const report = reports[prospect.id];
+  const card = document.createElement("article");
+  card.className = "prospect-card";
+  card.id = `card-${prospect.id}`;
+  card.style.animationDelay = `${Math.min(idx * 0.025, 0.5)}s`;
+
+  const vitals = [
+    prospect.pos,
+    prospect.age ? `${prospect.age} yrs` : null,
+  ].filter(Boolean);
+
+  let reportHTML = report
+    ? `<div class="card-blurb-short">${esc(report.short)}</div>
+       <div class="card-blurb-long">${fmtParas(report.long)}</div>
+       <button class="btn-regen" data-id="${prospect.id}">↺ Regenerate</button>`
+    : `<div class="card-pending"><span class="spinner hidden"></span><span>Awaiting scouting report…</span></div>`;
+
+  card.innerHTML = `
+    <div class="card-rank">${prospect.rank}</div>
+    <div class="card-body">
+      <div class="card-header">
+        <span class="card-name">${esc(prospect.name)}</span>
+        <span class="card-pos">${esc(prospect.pos)}</span>
+      </div>
+      <div class="card-vitals">
+        ${vitals.map(v => `<span class="vital">${esc(v)}</span>`).join("")}
+      </div>
+      ${renderComps(prospect.comps)}
+      <div class="card-report" id="report-${prospect.id}">${reportHTML}</div>
+    </div>
+  `;
+
+  const regenBtn = card.querySelector(".btn-regen");
+  if (regenBtn) regenBtn.addEventListener("click", () => regenOne(prospect));
+
+  return card;
+}
+
+function renderBoard() {
+  els.emptyState.classList.add("hidden");
+  els.board.innerHTML = "";
+
+  prospects.forEach((p, i) => els.board.appendChild(renderCard(p, i)));
+
+  const missing = prospects.filter(p => !reports[p.id]).length;
+  els.btnScout.textContent = missing > 0
+    ? `Scout the Draft (${missing} pending)`
+    : "Scout the Draft ✓";
+  els.btnRegenAll.classList.remove("hidden");
+}
+
+function updateReportEl(prospect) {
+  const el = document.getElementById(`report-${prospect.id}`);
+  if (!el) return;
+  const report = reports[prospect.id];
+  if (report) {
+    el.innerHTML = `
+      <div class="card-blurb-short">${esc(report.short)}</div>
+      <div class="card-blurb-long">${fmtParas(report.long)}</div>
+      <button class="btn-regen" data-id="${prospect.id}">↺ Regenerate</button>`;
+    el.querySelector(".btn-regen").addEventListener("click", () => regenOne(prospect));
+  }
+}
+
+// ── Generate all ────────────────────────────────────────────────────────────────
+
+async function scoutAll(force = false) {
+  if (generating) return;
+  const apiKey = els.apiKey.value.trim();
+  if (!apiKey) { alert("Enter your Anthropic API key first."); return; }
+
+  const queue = force ? [...prospects] : prospects.filter(p => !reports[p.id]);
+  if (!queue.length) return;
+
+  generating = true;
+  els.btnScout.disabled = true;
+  els.btnRegenAll.disabled = true;
+  els.progressWrap.classList.add("visible");
+
+  for (let i = 0; i < queue.length; i++) {
+    const p = queue[i];
+    const el = document.getElementById(`report-${p.id}`);
+    if (el) el.innerHTML = `<div class="card-pending"><div class="spinner"></div><span>Scouting ${esc(p.name)}…</span></div>`;
+
+    els.progressFill.style.width = `${Math.round((i / queue.length) * 100)}%`;
+    els.progressLabel.textContent = `${i + 1} / ${queue.length} · ${p.name}`;
+
+    try {
+      reports[p.id] = await generateReport(p, apiKey);
+      saveReports();
+      updateReportEl(p);
+    } catch(err) {
+      if (el) el.innerHTML = `<div class="card-pending"><span style="color:#c85a4a">Error: ${esc(err.message)}</span></div>`;
+    }
+
+    if (i < queue.length - 1) await sleep(350);
+  }
+
+  els.progressFill.style.width = "100%";
+  els.progressLabel.textContent = `Done · ${queue.length} reports generated`;
+  setTimeout(() => els.progressWrap.classList.remove("visible"), 3000);
+
+  els.btnScout.textContent = "Scout the Draft ✓";
+  els.btnScout.disabled = false;
+  els.btnRegenAll.disabled = false;
+  generating = false;
+}
+
+async function regenOne(prospect) {
+  const apiKey = els.apiKey.value.trim();
+  if (!apiKey) { alert("Enter your Anthropic API key first."); return; }
+
+  const el = document.getElementById(`report-${prospect.id}`);
+  if (el) el.innerHTML = `<div class="card-pending"><div class="spinner"></div><span>Regenerating…</span></div>`;
+
+  try {
+    reports[prospect.id] = await generateReport(prospect, apiKey);
+    saveReports();
+    updateReportEl(prospect);
+  } catch(err) {
+    if (el) el.innerHTML = `<div class="card-pending"><span style="color:#c85a4a">Error: ${esc(err.message)}</span></div>`;
+  }
+}
+
+// ── Persistence ─────────────────────────────────────────────────────────────────
+
+function saveReports() {
+  try { localStorage.setItem(LS.REPORTS, JSON.stringify(reports)); } catch(e) {}
+}
+
+function saveProspects() {
+  try { localStorage.setItem(LS.PROSPECTS, JSON.stringify(prospects)); } catch(e) {}
+}
+
+function saveComps() {
+  try { localStorage.setItem(LS.COMPS, JSON.stringify(compsDB)); } catch(e) {}
+}
+
+function loadFromStorage() {
+  try {
+    const apiKey = localStorage.getItem(LS.API_KEY);
+    if (apiKey) { els.apiKey.value = apiKey; updateApiStatus(true); }
+
+    const savedReports = localStorage.getItem(LS.REPORTS);
+    if (savedReports) reports = JSON.parse(savedReports);
+
+    const savedComps = localStorage.getItem(LS.COMPS);
+    if (savedComps) {
+      compsDB = JSON.parse(savedComps);
+      const savedPopStats = localStorage.getItem("bbgmScout_popStats");
+      if (savedPopStats) popStats = JSON.parse(savedPopStats);
+      const meta = JSON.parse(localStorage.getItem(LS.COMPS_META) || "{}");
+      updateCompsSlot(meta.name || "Loaded from storage", compsDB.length);
+    }
+
+    const savedProspects = localStorage.getItem(LS.PROSPECTS);
+    if (savedProspects) {
+      prospects = JSON.parse(savedProspects);
+      const meta = JSON.parse(localStorage.getItem(LS.DRAFT_META) || "{}");
+      updateDraftSlot(meta.name || "Loaded from storage", prospects.length);
+      renderBoard();
+    } else {
+      showEmpty();
+    }
+  } catch(e) { showEmpty(); }
+}
+
+// ── UI helpers ──────────────────────────────────────────────────────────────────
+
+function updateCompsSlot(name, count) {
+  els.compsName.textContent = name;
+  els.compsCount.textContent = `${count} players`;
+  els.slotComps.classList.add("loaded");
+  checkReady();
+}
+
+function updateDraftSlot(name, count) {
+  els.draftName.textContent = name;
+  els.draftCount.textContent = `${count} prospects`;
+  els.slotDraft.classList.add("loaded");
+  checkReady();
+}
+
+function updateApiStatus(hasKey) {
+  if (hasKey) {
+    els.apiStatus.textContent = "Key saved ✓";
+    els.slotApi.classList.add("keyed");
+  }
+}
+
+function checkReady() {
+  const ready = compsDB.length > 0 && prospects.length > 0;
+  els.btnScout.disabled = !ready;
+  if (ready) {
+    els.actionStatus.textContent = `${prospects.length} prospects ready.`;
+  }
+}
+
+function showEmpty() {
+  els.emptyState.classList.remove("hidden");
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── File handlers ────────────────────────────────────────────────────────────────
+
+$("input-comps").addEventListener("change", e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const isXLSX = /\.xlsx?$/i.test(file.name);
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      let rows;
+      if (isXLSX) {
+        const wb = XLSX.read(ev.target.result, { type: "array" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        rows = XLSX.utils.sheet_to_json(ws, { defval: "" })
+          .map(row => { const r = {}; for (const [k,v] of Object.entries(row)) r[k.trim()] = String(v).trim(); return r; });
+      } else {
+        rows = parseCSV(ev.target.result);
+      }
+      const result = loadCompsFromRows(rows);
+      if (!result.players.length) throw new Error("No rows found");
+      compsDB = result.players;
+      popStats = result.popStats;
+      saveComps();
+      localStorage.setItem(LS.COMPS_META, JSON.stringify({ name: file.name }));
+      localStorage.setItem("bbgmScout_popStats", JSON.stringify(popStats));
+      updateCompsSlot(file.name, compsDB.length);
+      if (prospects.length) reprocessProspects();
+    } catch(err) {
+      alert("Error reading comps file: " + err.message);
+    }
+  };
+  if (isXLSX) reader.readAsArrayBuffer(file);
+  else reader.readAsText(file);
+});
+
+$("input-draft").addEventListener("change", e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const isXLSX = /\.xlsx?$/i.test(file.name);
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      if (!compsDB.length) throw new Error("Load your comps database first.");
+      let rows;
+      if (isXLSX) {
+        const wb = XLSX.read(ev.target.result, { type: "array" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        rows = XLSX.utils.sheet_to_json(ws, { defval: "" })
+          .map(row => { const r = {}; for (const [k,v] of Object.entries(row)) r[k.trim()] = String(v).trim(); return r; });
+      } else {
+        rows = parseCSV(ev.target.result);
+      }
+      const raw = loadDraftFromRows(rows, popStats);
+      if (!raw.length) throw new Error("No rows found");
+      prospects = raw.map((p, i) => {
+        const noisy = applyNoise(p.normStats);
+        const comps = getComps(noisy, p);
+        return { ...p, rank: i + 1, noisyStats: noisy, comps };
+      });
+      reports = {};
+      saveReports();
+      saveProspects();
+      localStorage.setItem(LS.DRAFT_META, JSON.stringify({ name: file.name }));
+      updateDraftSlot(file.name, prospects.length);
+      renderBoard();
+    } catch(err) {
+      alert("Error reading draft file: " + err.message);
+    }
+  };
+  if (isXLSX) reader.readAsArrayBuffer(file);
+  else reader.readAsText(file);
+});
+
+function reprocessProspects() {
+  prospects = prospects.map(p => {
+    const noisy = applyNoise(p.normStats);
+    const comps = getComps(noisy, p);
+    return { ...p, noisyStats: noisy, comps };
+  });
+  saveProspects();
+  renderBoard();
+}
+
+// ── Event listeners ──────────────────────────────────────────────────────────────
+
+els.btnSaveKey.addEventListener("click", () => {
+  const key = els.apiKey.value.trim();
+  if (!key) return;
+  localStorage.setItem(LS.API_KEY, key);
+  updateApiStatus(true);
+  els.btnSaveKey.textContent = "Saved ✓";
+  setTimeout(() => els.btnSaveKey.textContent = "Save", 1500);
+});
+
+els.btnScout.addEventListener("click", () => scoutAll(false));
+
+els.btnRegenAll.addEventListener("click", () => {
+  if (!confirm("Regenerate all reports? This will overwrite existing ones.")) return;
+  reports = {};
+  saveReports();
+  renderBoard();
+  scoutAll(true);
+});
+
+els.btnClearAll.addEventListener("click", () => {
+  if (!confirm("Clear all saved data? This will remove your comps database, draft class, and all reports.")) return;
+  Object.values(LS).forEach(k => localStorage.removeItem(k));
+  compsDB = []; prospects = []; reports = {};
+  els.slotComps.classList.remove("loaded");
+  els.slotDraft.classList.remove("loaded");
+  els.compsName.textContent = "Upload player CSV";
+  els.compsCount.textContent = "";
+  els.draftName.textContent = "Upload prospect CSV";
+  els.draftCount.textContent = "";
+  els.btnScout.disabled = true;
+  els.btnRegenAll.classList.add("hidden");
+  els.board.innerHTML = "";
+  els.actionStatus.textContent = "Load a comps database and draft class to begin.";
+  showEmpty();
+});
+
+// ── Boot ─────────────────────────────────────────────────────────────────────────
+loadFromStorage();
+</script>
+</body>
+</html>
